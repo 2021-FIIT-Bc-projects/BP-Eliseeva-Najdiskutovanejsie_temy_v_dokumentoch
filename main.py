@@ -2,13 +2,14 @@
 # pip install pyLDAvis
 
 import gensim
+import matplotlib
 import nltk
 import pandas as pd
 # import numpy as np
 import os
 import warnings
-# import pyLDAvis
-# import pyLDAvis.gensim_models
+import pyLDAvis
+import pyLDAvis.gensim_models
 
 from gensim import corpora
 from sklearn.datasets import fetch_20newsgroups
@@ -18,8 +19,7 @@ from gensim.models import CoherenceModel
 from pprint import pprint
 import pyforms
 from pyforms import BaseWidget
-from pyforms.controls import ControlText, ControlButton, ControlFile, ControlNumber, ControlCombo
-
+from pyforms.controls import ControlText, ControlButton, ControlFile, ControlNumber, ControlCombo, ControlLabel
 import matplotlib.pyplot as plt
 import spacy
 
@@ -34,6 +34,7 @@ import spacy
 # print(pkg_resources.get_distribution('matplotlib').version)
 
 global corpus_test
+global corpus_train
 global stop_words
 global nlp
 global data_all_lemmatized
@@ -160,13 +161,10 @@ def clean_data(papers):
     return papers
 
 
-# pyLDAvis.enable_notebook()
-# vis = pyLDAvis.gensim_models.prepare(lda_model, corpus_all, id2word)
-# vis
 """### Custom hyperparameter tuning"""
 
 
-def hypertuning(corpus, texts, limit=19, start=3, step=2):
+def hypertuning(corpus, texts, limit=15, start=2, step=2):
     global settings
     model_results = {'num_topics': [],
                      'coherence': []
@@ -193,6 +191,7 @@ def hypertuning(corpus, texts, limit=19, start=3, step=2):
 def model_creation():
     print("model creation started")
     global corpus_test
+    global corpus_train
     global data_all_lemmatized
     global id2word
     global stop_words
@@ -209,7 +208,7 @@ def model_creation():
     papers_all = papers_all[:500]
     papers_all = clean_data(papers_all)
     data_all_lemmatized = prepare_data(papers_all['paper_text_processed'].values)
-    # ShowWordCloud(data_all_lemmatized)
+    ShowWordCloud(data_all_lemmatized)
 
     id2word = corpora.Dictionary(data_all_lemmatized)
 
@@ -234,7 +233,20 @@ def model_creation():
 
     measure_model(lda_model)
 
-    model_results = hypertuning(corpus_train, data_all_lemmatized)
+    # vis = pyLDAvis.gensim_models.prepare(lda_model, corpus_all, id2word)
+    # pyLDAvis.display(vis)
+
+
+def start_hypertuning(start, limit, step):
+    print("tuning started")
+    global corpus_test
+    global corpus_train
+    global data_all_lemmatized
+    global id2word
+    global stop_words
+    global nlp
+    global settings
+    model_results = hypertuning(corpus_train, data_all_lemmatized, limit, start, step)
 
     best_res = max(model_results['coherence'])
     i = model_results['coherence'].index(best_res)
@@ -243,6 +255,7 @@ def model_creation():
         print(x)
         print(model_results[x][i])
 
+    plt.figure()
     plt.plot(model_results['num_topics'], model_results['coherence'])
     plt.xlabel("num_topics")
     plt.ylabel("coherence")
@@ -265,6 +278,7 @@ def model_creation():
         eta_model_results.append(coh)
         print(coh)
 
+    plt.figure()
     plt.plot(eta, eta_model_results)
     plt.xlabel("eta")
     plt.ylabel("coherence")
@@ -286,10 +300,10 @@ def model_creation():
     measure_model(best_model)
 
 
-class SimpleExample1(BaseWidget):
+class startMenu(BaseWidget):
 
     def __init__(self):
-        super(SimpleExample1, self).__init__('Simple example 1')
+        super(startMenu, self).__init__('Start menu')
 
         # Definition of the forms fields
         self._topicnumber = ControlNumber(label="Topic number", default=2, minimum=2, maximum=15)
@@ -305,9 +319,19 @@ class SimpleExample1(BaseWidget):
             self._eta.add_item(str(e))
         self._file = ControlFile('Get data')
         self._button = ControlButton('Start LDA algorithm')
-
         # Define the button action
         self._button.value = self.__buttonAction
+
+        self._topicstart = ControlNumber(label="Topic start", default=2, minimum=1, maximum=15)
+        self._topiclimit = ControlNumber(label="Topic limit", default=10, minimum=1, maximum=15)
+        self._topicstep = ControlNumber(label="Topic step", default=2, minimum=1, maximum=15)
+        self._button2 = ControlButton('Start hyperparameter tuning')
+        self._button2.value = self.__button2Action
+        self._topicstep.hide()
+        self._topicstart.hide()
+        self._topiclimit.hide()
+        self._button2.hide()
+
 
     def __buttonAction(self):
         global settings
@@ -331,12 +355,31 @@ class SimpleExample1(BaseWidget):
         if os.path.isfile(settings["path"]):
             print(settings)
             model_creation()
+            self.changeWindow()
         else:
             return
+
+    def changeWindow(self):
+        self._topicnumber.hide()
+        self._chunksize.hide()
+        self._passes.hide()
+        self._alpha.hide()
+        self._eta.hide()
+        self._file.hide()
+        self._eta.hide()
+        self._button.hide()
+
+        self._topicstep.show()
+        self._topicstart.show()
+        self._topiclimit.show()
+        self._button2.show()
+
+    def __button2Action(self):
+        start_hypertuning(int(self._topicstart.value), int(self._topiclimit.value), int(self._topicstep.value))
 
 
 
 # Execute the application
 if __name__ == "__main__":
     # model_creation("papers.csv")
-    pyforms.start_app(SimpleExample1)
+    pyforms.start_app(startMenu, geometry=(200, 200, 400, 400))
